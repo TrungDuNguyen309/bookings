@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thêm mới tài khoản</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    async function checkUsername() {
+      const username = document.getElementById('username').value;
+      const messageSpan = document.getElementById('usernameMessage');
+
+      if (!username) {
+        messageSpan.textContent = 'Vui lòng nhập username.';
+        messageSpan.className = 'text-red-500 text-sm mt-1';
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/v1/users/check?username=${username}`);
+        const result = await response.json();
+
+        if (result.status === 'Success') {
+          messageSpan.textContent = 'Username khả dụng.';
+          messageSpan.className = 'text-green-500 text-sm mt-1';
+        } else {
+          messageSpan.textContent = result.message;
+          messageSpan.className = 'text-red-500 text-sm mt-1';
+        }
+      } catch (error) {
+        messageSpan.textContent = 'Có lỗi xảy ra. Vui lòng thử lại sau!';
+        messageSpan.className = 'text-red-500 text-sm mt-1';
+      }
+    }
+
+    async function fetchDepartments() {
+      try {
+        const response = await fetch('/api/v1/departments/all');
+        const result = await response.json();
+
+        let departments = [];
+        if (typeof result.retMsg === 'string') {
+          const matches = result.retMsg.match(/Department\(departmentId=(\d+), departmentName=([\w\s]+),/g);
+          if (matches) {
+            departments = matches.map(dept => {
+              const parts = dept.match(/departmentId=(\d+), departmentName=([\w\s]+)/);
+              return { departmentId: parts[1], departmentName: parts[2] };
+            });
+          }
+        }
+
+        const uniqueDepartments = [];
+        const seenIds = new Set();
+        departments.forEach(dept => {
+          if (!seenIds.has(dept.departmentId)) {
+            uniqueDepartments.push(dept);
+            seenIds.add(dept.departmentId);
+          }
+        });
+
+        const departmentSelect = document.getElementById('department');
+        departmentSelect.innerHTML = '<option value="">Chọn đơn vị</option>';
+        uniqueDepartments.forEach(dept => {
+          const option = document.createElement('option');
+          option.value = dept.departmentId;
+          option.textContent = dept.departmentName;
+          departmentSelect.appendChild(option);
+        });
+
+      } catch (error) {
+        console.error('Lỗi khi lấy danh sách đơn vị:', error);
+      }
+    }
+
+    async function fetchRoles() {
+      try {
+        const response = await fetch('/api/v1/roles/all');
+        const result = await response.json();
+        const rolesString = result.retMsg;
+        const roles = rolesString.match(/Role\(roleId=\d+, roleName=(\w+)\)/g).map(role => {
+          const roleName = role.match(/roleName=(\w+)/)[1];
+          return { roleName };
+        });
+
+        const roleSelect = document.getElementById('role');
+        roleSelect.innerHTML = '<option>Chọn quyền</option>';
+        roles.forEach(role => {
+          const option = document.createElement('option');
+          option.value = role.roleName;
+          option.textContent = role.roleName;
+          roleSelect.appendChild(option);
+        });
+      } catch (error) {
+        console.error('Lỗi khi lấy danh sách quyền:', error);
+      }
+    }
+
+    async function createAccount(event) {
+      event.preventDefault();
+
+      const userReq = {
+        username: document.getElementById('username').value,
+        employee_name: document.getElementById('employee_name').value,
+        password: document.getElementById('password').value,
+        email: document.getElementById('email').value,
+        department_name: document.getElementById('department').value,
+        role_name: document.getElementById('role').value,
+        status: document.getElementById('active').checked
+      };
+
+      try {
+        const response = await fetch('/api/v1/users/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(userReq)
+        });
+
+        const result = await response.json();
+        console.log('Response:', result); // Ghi lại phản hồi để kiểm tra
+
+        if (result.status === 'Success') {
+          showNotification(result.message);
+          window.location.href = "/users";
+        } else {
+          showNotification(result.message || 'Có lỗi xảy ra. Vui lòng thử lại sau!');
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        showNotification('Có lỗi xảy ra. Vui lòng thử lại sau!');
+      }
+    }
+
+    function updateEmail() {
+      const username = document.getElementById('username').value;
+      const emailField = document.getElementById('email');
+      emailField.value = username ? `${username}@cmcglobal.com.vn` : '';
+    }
+
+    window.onload = function() {
+      fetchDepartments();
+      fetchRoles();
+      document.getElementById('username').addEventListener('input', updateEmail);
+      document.querySelector('button[type="reset"]').addEventListener('click', function() {
+        window.location.href = "/users"; // Redirect to user.html when cancel button is clicked
+      });
+    };
+
+    const section = document.querySelector("section"),
+            overlay = document.querySelector(".overlay"),
+            closeBtn = document.querySelector(".close-btn"),
+            modalTitle = document.getElementById("modal-title"),
+            modalMessage = document.getElementById("modal-message"),
+            secondaryAction = document.getElementById("secondary-action");
+
+    function showNotification(message, confirm = false) {
+      modalTitle.textContent = confirm ? "Confirmation" : "Notification";
+      modalMessage.textContent = message;
+      secondaryAction.style.display = confirm ? "inline-block" : "none";
+      section.classList.add("active");
+    }
+
+    overlay.addEventListener("click", () => section.classList.remove("active"));
+    closeBtn.addEventListener("click", () => section.classList.remove("active"));
+  </script>
+  </script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+<div class="bg-white p-8 rounded-2xl shadow-md w-96">
+  <h2 class="text-xl font-bold mb-4 text-center">Thêm mới tài khoản</h2>
+  <form onsubmit="createAccount(event)">
+    <div class="mb-4">
+      <label class="block text-gray-700 mb-1">Username:</label>
+      <div class="flex">
+        <input id="username" type="text" class="border border-gray-300 rounded-l-md p-2 flex-grow" placeholder="Nhập username">
+        <button type="button" onclick="checkUsername()" class="bg-blue-500 text-white rounded-r-md px-4">Kiểm tra</button>
+      </div>
+      <span id="usernameMessage"></span>
+    </div>
+
+    <div class="mb-4">
+      <label class="block text-gray-700 mb-1">Tên nhân viên:</label>
+      <input id="employee_name" type="text" class="border border-gray-300 rounded-md p-2 w-full" placeholder="Nhập tên nhân viên">
+    </div>
+    <div class="mb-4">
+      <label class="block text-gray-700 mb-1">Email:</label>
+      <input id="email" type="email" class="border border-gray-300 rounded-md p-2 w-full" placeholder="Nhập email">
+    </div>
+
+    <div class="mb-4">
+      <label class="block text-gray-700 mb-1">Đơn vị:</label>
+      <select id="department" class="border border-gray-300 rounded-md p-2 w-full">
+        <option>Chọn đơn vị</option>
+      </select>
+    </div>
+
+    <div class="mb-4">
+      <label class="block text-gray-700 mb-1">Quyền:</label>
+      <select id="role" class="border border-gray-300 rounded-md p-2 w-full">
+        <option>Chọn quyền</option>
+      </select>
+    </div>
+
+    <div class="mb-4 flex items-center">
+      <input type="checkbox" id="active" class="mr-2">
+      <label for="active" class="text-gray-700">Tình trạng</label>
+    </div>
+
+    <div class="mb-4">
+      <label class="block text-gray-700 mb-1">Mật khẩu:</label>
+      <input id="password" type="password" class="border border-gray-300 rounded-md p-2 w-full" placeholder="Nhập mật khẩu">
+    </div>
+
+    <div class="flex justify-between">
+      <button type="reset" class="bg-gray-500 text-white px-4 py-2 rounded-md">Hủy</button>
+      <button type="submit" class="bg-blue-500 text-white px-4 py-2 rounded-md">Thêm mới</button>
+    </div>
+  </form>
+</div>
+</body>
+</html>
